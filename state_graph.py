@@ -166,11 +166,12 @@ def printState(state_obj):
     print(state['outflow']['mag'].getName(), state['outflow']['der'].getName())
     print('----------------------')
 
+def createEdge(source, target, change):
+    return {"explanation": change.desciption,"source": source, "target": target}
 
 def addNewState(edges, states, source, target, change):
     source.next_states.append(target)
-    edges.append({"explanation": change.desciption,
-                  "source": source, "target": target})
+    edges.append(createEdge(source,target,change))
     states.append(target)
     return edges, states
 
@@ -224,11 +225,11 @@ def validateState(state_obj):
     return True
 
 
-def isRedundantState(states, state):
+def existingState(states, state):
     for s in states:
         if s == state:
-            return True
-    return False
+            return s
+    return None
 
 
 #------------------------------------ VISUALIZATION -------------------------------
@@ -273,6 +274,7 @@ def generateGraph(edgeList):
     #graph.write_png('TEST_graph.png')
     return graph
 
+# --------------------------------------- MAIN --------------------------------------
 # general properties
 nodeShape = 'rectangle'
 nodeStyle = 'filled'
@@ -308,18 +310,27 @@ while not fringe.empty():
         # printState(state)
         if validateState(state_dict['state']):
             valid_states.append(state_dict)
+    new_edges = []
+    new_states = []
     for state_dict in valid_states:
         if not applyRules(state_dict['state']):
             print('Not possible to apply rules')
-        if not isRedundantState(states, state_dict['state']):
-            edges, states = addNewState(
-                edges, states, source=curr_state, target=state_dict['state'], change=state_dict['change'])
+        same_state = existingState(states, state_dict['state'])
+        if same_state is None:
+            print(same_state)
+            new_edges, new_states = addNewState(
+                new_edges, new_states, source=curr_state, target=state_dict['state'], change=state_dict['change'])
             fringe.put(state_dict['state'])
             printState(state_dict['state'])
-
+        elif curr_state != same_state:
+            print ("aaaaaaaaaaaaaa")
+            edges.append(createEdge(source=curr_state, target=same_state,change=state_dict['change']))
+            printState(state_dict['state'])
+    edges+=new_edges
+    states += new_states
     dot_graph = generateGraph(edges)
     dot_graph.write_png('TEST_graph'+str(iteration)+'.png')
     iteration+=1
 
-    print('*****************************')
+    print('************'+str(iteration)+'*****************')
     input("Press Enter to continue...")
