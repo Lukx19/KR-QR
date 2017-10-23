@@ -62,7 +62,7 @@ class QSpace(object):
 
 
 class State:
-    def __init__(self, quantities):
+    def __init__(self,quantities):
         self.state = {
             'inflow': {'mag': quantities[0],
                        'der': quantities[1]},
@@ -73,6 +73,7 @@ class State:
         }
         self.next_states = []
         self.quantities = quantities
+        self.name ="noname"
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -90,73 +91,106 @@ class StateChange:
         self.desciption = desc
 
 
-def generateNextStates(cur_state):
-    next_states = []
-    quantities = ['inflow', 'volume']
-    category = ['mag', 'der']
-    for i in quantities:
-        for j in category:
-            for k in ['increase', 'decrease']:
-                desc = ""
-                new_state = copy.deepcopy(cur_state)
-                if k == "increase":
-                    new_state.state[i][j].increase()
-                    desc += i + " " + j + \
-                        " increases to " + \
-                        new_state.state[i][j].getName() + "\n"
-                else:
-                    new_state.state[i][j].decrease()
-                    desc += i + " " + j + \
-                        " decreases to " + \
-                        new_state.state[i][j].getName() + '\n'
+def stationaryToIntervalChange(state_obj):
+    for qt in state_obj.quantities:
+        if qt.isStationary():
+            return True
+    return False
 
-                # check whether new state is different from previous state
-                if new_state.state[i][j].getVal() != cur_state.state[i][j].getVal():
+def genFlipedInflow(state_obj):
+    states = []
+    if state_obj.state['inflow']['der'].getVal() == 0:
+        inc_state = copy.deepcopy(state_obj)
+        inc_state.state['inflow']['der'].increase()
+        states.append({'state': inc_state, 'change': StateChange(desc = "Im+")})
+        if state_obj.state['inflow']['mag'].getVal() != 0:
+            dec_state = copy.deepcopy(state_obj)
+            dec_state.state['inflow']['der'].decrease()
+            states.append({'state': dec_state, 'change': StateChange(desc = "Im-")})
+        return states
+    if stationaryToIntervalChange(state_obj):
+        return states
+    if state_obj.state['inflow']['der'].getVal() == -1:
+        inc_state = copy.deepcopy(state_obj)
+        inc_state.state['inflow']['der'].increase()
+        states.append({'state': inc_state, 'change': StateChange(desc = "Im+")})
+        return states
+    if state_obj.state['inflow']['der'].getVal() == 1:
+        dec_state = copy.deepcopy(state_obj)
+        dec_state.state['inflow']['der'].decrease()
+        states.append({'state': dec_state, 'change': StateChange(desc = "Im-")})
+        return states
+    return states
 
-                    # change outflow according to volume
-                    if k == "increase" and i == 'volume' and j == 'mag':
-                        new_state.state['outflow'][j].increase()
-                        desc += "ouflow " + j + "increases to " + \
-                                new_state.state['outflow'][j].getName() + '\n'
+def generateNextStates(state_obj):
+    state = state_obj.state
+    new_states = []
+    # getting to maximum
+    if state['volume']['der'].getVal() == 1 and state['volume']['mag'].getVal() == 1:
+        new = copy.deepcopy(state_obj)
+        new.state['volume']['der'].decrease()
+        new.state['outflow']['der'].decrease()
+        new.state['volume']['mag'].increase()
+        new.state['outflow']['mag'].increase()
+        desc = "Vm+, Om+"
+        new_states.append({'state': new, 'change': StateChange(desc = desc)})
 
-                    # change outflow according to volume
-                    if k == "decrease" and i == 'volume' and j == 'mag':
-                        new_state.state['outflow'][j].decrease()
-                        desc += "ouflow " + j + "decrease to " + \
-                                new_state.state['outflow'][j].getName() + '\n'
+    # apply derivation on inflow magnitude
+    if state['inflow']['der'].getVal() == 1:
+        new = copy.deepcopy(state_obj)
+        new.state['inflow']['mag'].increase()
+        new.state['volume']['der'].increase()
+        new.state['outflow']['der'].increase()
+        desc = "Id+ -> Im+, Vd+, Od+"
+        new_states.append({'state': new, 'change': StateChange(desc = desc)})
 
-                    # changes in derivate can be added without extra check
-                    if j == 'der':
-                        next_states.append(
-                            {'state': new_state, 'change': StateChange(desc)})
-                    else:
-                        # changes in magnitude can only happen when sign of derivative corresponds
-                        if k == "increase" and cur_state.state[i]['der'].getVal() == 1:
-                            next_states.append(
-                                {'state': new_state, 'change': StateChange(desc)})
-                            # print('incr')
-                        if k == "decrease" and cur_state.state[i]['der'].getVal() == -1:
-                            next_states.append(
-                                {'state': new_state, 'change': StateChange(desc)})
-                            # print('decr')
+    # apply influenc of inflow magnitude
+    if state['inflow']['mag'].getVal() == 1 and state['volume']['mag'].getVal() < 1:
+        new = copy.deepcopy(state_obj)
+        new.state['volume']['der'].increase()
+        new.state['outflow']['der'].increase()
+        desc = "Vd+, Od+"
+        new_states.append({'state': new, 'change': StateChange(desc = desc)})
 
-    inflow_inverse_states = []
-    for state_dict in next_states:
-        if state_dict['state'].state['inflow']['mag'] != curr_state.state['inflow']['mag']:
-            continue
-        negative_state = copy.deepcopy(state_dict)
-        negative_state['state'].state['inflow']['der'].increase()
-        derivation = negative_state['state'].state['inflow']['der']
-        if negative_state['state'] == state_dict['state']:
-            derivation.decrease()
-            negative_state['change'].desciption += " inflow decresed to " + \
-                derivation.getName() + '\n'
-        else:
-            negative_state['change'].desciption += " inflow increased to " + \
-                derivation.getName() + '\n'
+    # # apply influenc of slowing inflow
+    # if state['inflow']['der'].getVal() == -1:
+    #     new = copy.deepcopy(state_obj)
+    #     new.state['volume']['der'].decrease()
+    #     new.state['outflow']['der'].decrease()
+    #     desc = "Vd-, Od-"
+    #     new_states.append({'state': new, 'change': StateChange(desc = desc)})
 
-        inflow_inverse_states.append(negative_state)
-    return next_states + inflow_inverse_states
+    # apply influence of steady inflow
+    if (state['inflow']['der'].getVal() == 0
+        and state['volume']['der'].getVal() == 1
+        and state['inflow']['mag'].getVal() == 0):
+
+        new = copy.deepcopy(state_obj)
+        new.state['volume']['der'].decrease()
+        new.state['outflow']['der'].decrease()
+        desc = "Vd-, Od-"
+        new_states.append({'state': new, 'change': StateChange(desc = desc)})
+    # apply derivatives of increasing volume
+    if state['volume']['der'].getVal() == 1 and state['volume']['mag'].getVal() == 0:
+        new = copy.deepcopy(state_obj)
+        new.state['volume']['mag'].increase()
+        new.state['outflow']['mag'].increase()
+        desc = "Vd+ Od+ -> Vm+, Om+"
+        new_states.append({'state': new, 'change': StateChange(desc = desc)})
+    print('generated states',len(new_states))
+
+    # for s in new_states:
+    #     state = s['state'].state
+    #     if state['inflow']['der'].getVal() == 0:
+
+    #     elif  state['inflow']['der'].getVal() > 0:
+    #     else:
+
+    # if len(new_states) == 0:
+    new_states = new_states + genFlipedInflow(state_obj)
+    return new_states
+
+
 
 
 def printState(state_obj):
@@ -175,32 +209,8 @@ def addNewState(edges, states, source, target, change):
     states.append(target)
     return edges, states
 
-# change is a value representing change in derivation of inflow [-1,0,1]
 
-
-def applyRules(state_obj):
-    state = state_obj.state
-    # apply assumption: if the volume is on maximum. Its derivative must be zero
-    if state['volume']['mag'].getVal() == 2:
-        state['volume']['der'].decrease()
-        state['outflow']['der'].decrease()
-        return True
-    # apply derivative on inflow
-    if state['inflow']['der'].getVal() == 1 and state['inflow']['mag'].getVal == 0:
-        state['inflow']['mag'].increase()
-        return True
-    # apply influence of inflow on volume
-    if state['inflow']['mag'].getVal() == 1 and state['volume']['mag'].getVal() != 1:
-        state['volume']['der'].increase()
-        # apply proportiality between states
-        state['outflow']['der'].setStateAs(state['volume']['der'])
-        return True
-
-    if state['volume']['der'] != state['outflow']['der']:
-        state['outflow']['der'].setStateAs(state['volume']['der'])
-        return True
-    return False
-
+# -------------------------------------QR allgorithm helpers ---------------------
 
 def validateState(state_obj):
     state = state_obj.state
@@ -211,6 +221,9 @@ def validateState(state_obj):
     if (state['volume']['der'].getVal() + state['outflow']['der'].getVal() == 0
         and state['volume']['der'].getVal() != 0
             and state['outflow']['der'].getVal() != 0):
+        return False
+    # volume/outflow derivation cannot be positive when the container is full
+    if (state['volume']['mag'].getVal() == 2 and state['volume']['der'].getVal() == 1):
         return False
     # decreasing volume or oytflow is not possible when there is no quantity
     if (state['volume']['mag'].getVal() == 0 and state['volume']['der'].getVal() == -1):
@@ -241,12 +254,11 @@ def getStateText(state):
     vol_der = state.state['volume']['der'].getName()
     out_mag = state.state['outflow']['mag'].getName()
     out_der = state.state['outflow']['der'].getName()
-    return in_mag+"  "+in_der+"\n"+vol_mag+"  "+vol_der+"\n"+out_mag+"  "+out_der
+    return str(state.name)+'\n'+in_mag+"  "+in_der+"\n"+vol_mag+"  "+vol_der+"\n"+out_mag+"  "+out_der
 
 # generates a visual (directed) graph of all states
 def generateGraph(edgeList):
     graph = pydot.Dot(graph_type='digraph')
-
     for edgeObj in edgeList:
         transitionText = edgeObj['explanation']
         sourceState = edgeObj['source']
@@ -298,36 +310,32 @@ initial_state = State(
 
 states = [initial_state]
 edges = []
-fringe = queue.LifoQueue()
+fringe = queue.Queue()
 fringe.put(initial_state)
 iteration = 0
+
+
 while not fringe.empty():
     curr_state = fringe.get(block=False)
     print('start state:')
     printState(curr_state)
-    valid_states = []
-    for state_dict in generateNextStates(curr_state):
-        # printState(state)
-        if validateState(state_dict['state']):
-            valid_states.append(state_dict)
-    new_edges = []
-    new_states = []
-    for state_dict in valid_states:
-        if not applyRules(state_dict['state']):
-            print('Not possible to apply rules')
+    new_states = generateNextStates(curr_state)
+    for state_dict in new_states:
+        if not validateState(state_dict['state']):
+            continue
         same_state = existingState(states, state_dict['state'])
         if same_state is None:
-            print(same_state)
-            new_edges, new_states = addNewState(
-                new_edges, new_states, source=curr_state, target=state_dict['state'], change=state_dict['change'])
+            print("NONE")
+            state_dict['state'].name = str(len(states))
+            edges, states = addNewState(edges, states,
+                            source=curr_state, target=state_dict['state'], change=state_dict['change'])
             fringe.put(state_dict['state'])
             printState(state_dict['state'])
         elif curr_state != same_state:
             print ("aaaaaaaaaaaaaa")
+            curr_state.next_states.append(same_state)
             edges.append(createEdge(source=curr_state, target=same_state,change=state_dict['change']))
             printState(state_dict['state'])
-    edges+=new_edges
-    states += new_states
     dot_graph = generateGraph(edges)
     dot_graph.write_png('TEST_graph'+str(iteration)+'.png')
     iteration+=1
