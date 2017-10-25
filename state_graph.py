@@ -103,12 +103,12 @@ def genFlipedInflow(state_obj):
     if state_obj.state['inflow']['der'].getVal() == 0:
         inc_state = copy.deepcopy(state_obj)
         inc_state.state['inflow']['der'].increase()
-        states.append({'state': inc_state, 'change': StateChange(desc="Im+")})
+        states.append({'state': inc_state, 'change': StateChange(desc="Im+"), 'transition': "increase"})
         if state_obj.state['inflow']['mag'].getVal() != 0:
             dec_state = copy.deepcopy(state_obj)
             dec_state.state['inflow']['der'].decrease()
             states.append(
-                {'state': dec_state, 'change': StateChange(desc="Im-")})
+                {'state': dec_state, 'change': StateChange(desc="Im-"), 'transition': "decrease"})
         return states
     if stationaryToIntervalChange(state_obj):
         return states
@@ -118,16 +118,16 @@ def genFlipedInflow(state_obj):
     if state_obj.state['inflow']['der'].getVal() == -1:
         inc_state = copy.deepcopy(state_obj)
         inc_state.state['inflow']['der'].increase()
-        states.append({'state': inc_state, 'change': StateChange(desc="Im+")})
+        states.append({'state': inc_state, 'change': StateChange(desc="Im+"), 'transition': "increase"})
         return states
     if state_obj.state['inflow']['der'].getVal() == 1:
         dec_state = copy.deepcopy(state_obj)
         dec_state.state['inflow']['der'].decrease()
-        states.append({'state': dec_state, 'change': StateChange(desc="Im-")})
+        states.append({'state': dec_state, 'change': StateChange(desc="Im-"), 'transition': "decrease"})
         return states
     return states
 
-def newState(state_obj,change =[('inflow','der',0)],desc=""):
+def newState(state_obj,change =[('inflow','der',0)],desc="", transition=""):
     new_state = copy.deepcopy(state_obj)
     for ch in change:
         if ch[2] == -1:
@@ -135,18 +135,20 @@ def newState(state_obj,change =[('inflow','der',0)],desc=""):
         elif ch[2] == 1:
             new_state.state[ch[0]][ch[1]].increase()
 
-    return {'state': new_state, 'change': StateChange(desc=desc)}
+    return {'state': new_state, 'change': StateChange(desc=desc), 'transition': transition}
 
 def generateNextStates(state_obj):
     state = state_obj.state
     new_states = []
     # imidiate changes
     if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
-         new_states.append(newState(state_obj,[('volume','mag',1),('outflow','mag',1)],"IM1"))
+         new_states.append(newState(state_obj,[('volume','mag',1),('outflow','mag',1)],
+         desc="IM1", transition="time"))
 
     if state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 1:
          new_states.append(newState(state_obj,[('inflow','mag',1),
-            ('outflow','der',1),('volume','der',1)],"IM2"))
+            ('outflow','der',1),('volume','der',1)],
+            desc="IM2", transition="time"))
 
 
     # Changes which take long time:
@@ -155,11 +157,13 @@ def generateNextStates(state_obj):
     if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == 1):
         # apply positive Infuence
         if state['outflow']['mag'].getVal() != 2:
-            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)]))
+            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],
+            desc="", transition="time")) #TODO add descr
         if state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == 1:
             # go to maximal state
             new_states.append(newState(state_obj,[('volume','mag',1),
-                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)]))
+                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)],
+                desc="", transition="time")) #TODO add descr
         # # apply derivatives to increase volume magnitude
         # if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
         #     new_states.append(newState(state_obj,[('volume','mag',+1),('outflow','mag',+1)]))
@@ -167,7 +171,8 @@ def generateNextStates(state_obj):
         # rate of changes between inflow and outflow- outflow is faster -> go back to steady
         if (state['outflow']['mag'].getVal() == 1
             and state['outflow']['der'].getVal() == state['inflow']['der'].getVal()):
-            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],desc="steady"))
+            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
+            desc="steady", transition="time"))
 
     # steady inflow volume
     if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == 0):
@@ -175,29 +180,35 @@ def generateNextStates(state_obj):
         new_states.append(newState(state_obj,[('volume','der',change),('outflow','der',change)]))
         if state['outflow']['der'].getVal() == 1:
             new_states.append(newState(state_obj,[('volume','mag',1),
-                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)]))
+                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)],
+                desc="", transition="time")) #TODO add descr
 
     # decreasing inflow volume
     if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == -1):
         # apply negative influence
-        new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],desc="d1"))
+        new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
+        desc="d1", transition="time"))
         # extreme no inflow volume left
         if state['outflow']['der'].getVal() == -1 and state['outflow']['mag'].getVal() < 2:
-            new_states.append(newState(state_obj,[('inflow','der',+1),('inflow','mag',-1)],desc="d2"))
+            new_states.append(newState(state_obj,[('inflow','der',+1),('inflow','mag',-1)],
+            desc="d2", transition="time"))
         # colapsing from maximum to plus
         if state['outflow']['mag'].getVal() == 2 and state['outflow']['der'].getVal() == -1:
-            new_states.append(newState(state_obj,[('volume','mag',-1),('outflow','mag',-1)],desc="d3"))
+            new_states.append(newState(state_obj,[('volume','mag',-1),('outflow','mag',-1)],
+            desc="d3", transition="time"))
         # speed of decrease can be different in inflow and outflow -> go to steady outflow
         if state['outflow']['der'].getVal() == state['inflow']['der'].getVal():
-            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],desc="d3"))
+            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],
+            desc="d3", transition="time"))
 
     # no inflow volume
     if (state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 0):
         if state['outflow']['mag'].getVal() > 0:
-            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)]))
+            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
+            desc="", transition="time")) #TODO add descr
         if (state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == -1):
             new_states.append(newState(state_obj,[('volume','der',1),('outflow','der',1),
-                ('volume','mag',-1),('outflow','mag',-1)]))
+                ('volume','mag',-1),('outflow','mag',-1)], desc="", transition="time")) #TODO add descr
 
     new_states = new_states + genFlipedInflow(state_obj)
     print('new states generated: ',len(new_states))
@@ -213,12 +224,12 @@ def printState(state_obj):
     print(state['outflow']['mag'].getName(), state['outflow']['der'].getName())
     print('----------------------')
 
-def createEdge(source, target, change):
-    return {"explanation": change.desciption,"source": source, "target": target}
+def createEdge(source, target, change, transition):
+    return {"explanation": change.desciption,"source": source, "target": target, "transition": transition}
 
-def addNewState(edges, states, source, target, change):
+def addNewState(edges, states, source, target, change, transition):
     source.next_states.append(target)
-    edges.append(createEdge(source,target,change))
+    edges.append(createEdge(source,target,change,transition))
     states.append(target)
     return edges, states
 
@@ -264,44 +275,45 @@ def getStateText(state):
 
 # generates a visual (directed) graph of all states
 def generateGraph(edgeList):
-    graph = pydot.Dot(graph_type='digraph',center=True)
+    graph = pydot.Dot(graph_type='digraph', center=True, size=15)
     for edgeObj in edgeList:
-        transitionText = edgeObj['explanation']
-        sourceState = edgeObj['source']
-        targetState = edgeObj['target']
+        transitionText = edgeObj['explanation'] # explanation for transition
+        transitionType = edgeObj['transition']  # type of transition (+, -, or time)
+        sourceState = edgeObj['source']         # source state (obj)
+        targetState = edgeObj['target']         # target state (obj)
 
-        sourceStateText = getStateText(sourceState)
-        targetStateText = getStateText(targetState)
-
-        sourceNode = pydot.Node(sourceStateText, shape=nodeShape,
-            style=nodeStyle, fillcolor=nodeFillColor, color=nodeTextColor)
-        graph.add_node(sourceNode)
-
-        if len(targetState.next_states) ==0:
-            targetNode = pydot.Node(targetStateText, shape=nodeShape,
-                style=nodeStyle, fillcolor='#D0563A', color=nodeTextColor)
+        if transitionType == "increase":
+            edgeFillColor = '#00FF00'
+        elif transitionType == "decrease":
+            edgeFillColor = '#FF0000'
         else:
-            targetNode = pydot.Node(targetStateText, shape=nodeShape,
-                style=nodeStyle, fillcolor=nodeFillColor, color=nodeTextColor)
+            edgeFillColor = '#black'
+
+        sourceStateText = getStateText(sourceState) # all values of source state in text format
+        targetStateText = getStateText(targetState) # all values of target state in text format
+
+        if len(targetState.next_states) == 0:
+            nodeFillColor = '#81B2E0'
+            nodeBorder = 2.8
+        else:
+            nodeFillColor = '#92E0DF'
+            nodeBorder = 1.5
+
+        sourceNode = pydot.Node(sourceStateText, shape='rectangle',
+            style="filled", fillcolor='#92E0DF', penwidth=1.5)
+        graph.add_node(sourceNode)
+            
+        targetNode = pydot.Node(targetStateText, shape='rectangle', 
+            style="filled", fillcolor=nodeFillColor, penwidth=nodeBorder)
         graph.add_node(targetNode)
 
         edge = pydot.Edge(sourceNode, targetNode, label=transitionText,
-            labelfontcolor=edgeFillColor, fontsize=edgeFontSize, color=edgeTextColor)
+            color=edgeFillColor, penwidth=2.25)
         graph.add_edge(edge)
 
-    # graph.write_png('TEST_graph.png')
     return graph
 
 # --------------------------------------- MAIN --------------------------------------
-# general properties
-nodeShape = 'rectangle'
-nodeStyle = 'filled'
-nodeFillColor = '#99DDDF'
-nodeTextColor = 'black'
-edgeFillColor = 'black'
-edgeTextColor = 'black'
-edgeFontSize = '12.0'
-
 inflow_mag = QSpace('inflow_mag', ZP(), 0)
 inflow_der = QSpace('inflow_der', NZP(), 2)
 volume_mag = QSpace('volume_mag', ZPM(), 0)
@@ -334,13 +346,15 @@ while not fringe.empty():
             print("NONE")
             state_dict['state'].name = str(len(states))
             edges, states = addNewState(edges, states,
-                            source=curr_state, target=state_dict['state'], change=state_dict['change'])
+                            source=curr_state, target=state_dict['state'],
+                            change=state_dict['change'],transition=state_dict['transition'])
             fringe.put(state_dict['state'])
             printState(state_dict['state'])
         elif curr_state != same_state:
             print ("aaaaaaaaaaaaaa")
             curr_state.next_states.append(same_state)
-            edges.append(createEdge(source=curr_state, target=same_state,change=state_dict['change']))
+            edges.append(createEdge(source=curr_state, target=same_state,
+                                    change=state_dict['change'], transition=state_dict['transition']))
             printState(state_dict['state'])
     dot_graph = generateGraph(edges)
     dot_graph.write_png('TEST_graph'+str(iteration)+'.png')
