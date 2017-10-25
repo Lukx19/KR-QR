@@ -73,7 +73,7 @@ class State:
         }
         self.next_states = []
         self.quantities = quantities
-        self.name = "noname"
+        self.name = "0"
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -110,11 +110,18 @@ def genFlipedInflow(state_obj):
             states.append(
                 {'state': dec_state, 'change': StateChange(desc="Im-"), 'transition': "decrease"})
         return states
-    if stationaryToIntervalChange(state_obj):
-        return states
-    # if (state_obj.state['inflow']['mag'].getVal() == 0
-    #     or state_obj.state['outflow']['der'].getVal() == 0):
+    # if stationaryToIntervalChange(state_obj):
     #     return states
+    if (state_obj.state['inflow']['mag'].getVal() == 0
+        and state_obj.state['inflow']['der'].getVal() == 1):
+        return states
+    if (state_obj.state['inflow']['mag'].getVal() == 1
+        and state_obj.state['outflow']['der'].getVal() == 0
+        and state_obj.state['outflow']['mag'].getVal() != 2):
+        return states
+    if (state_obj.state['inflow']['der'].getVal() == -1
+        and state_obj.state['outflow']['mag'].getVal() == 2):
+        return states
     if state_obj.state['inflow']['der'].getVal() == -1:
         inc_state = copy.deepcopy(state_obj)
         inc_state.state['inflow']['der'].increase()
@@ -150,7 +157,8 @@ def generateNextStates(state_obj):
             ('outflow','der',1),('volume','der',1)],
             desc="IM2", transition="time"))
 
-
+    if len(new_states) == 0:
+        new_states = new_states + genFlipedInflow(state_obj)
     # Changes which take long time:
 
     # increasing inflow volume
@@ -210,7 +218,6 @@ def generateNextStates(state_obj):
             new_states.append(newState(state_obj,[('volume','der',1),('outflow','der',1),
                 ('volume','mag',-1),('outflow','mag',-1)], desc="", transition="time")) #TODO add descr
 
-    new_states = new_states + genFlipedInflow(state_obj)
     print('new states generated: ',len(new_states))
     return new_states
 
@@ -302,8 +309,8 @@ def generateGraph(edgeList):
         sourceNode = pydot.Node(sourceStateText, shape='rectangle',
             style="filled", fillcolor='#92E0DF', penwidth=1.5)
         graph.add_node(sourceNode)
-            
-        targetNode = pydot.Node(targetStateText, shape='rectangle', 
+
+        targetNode = pydot.Node(targetStateText, shape='rectangle',
             style="filled", fillcolor=nodeFillColor, penwidth=nodeBorder)
         graph.add_node(targetNode)
 
@@ -328,11 +335,11 @@ initial_state = State(
 
 states = [initial_state]
 edges = []
-fringe = queue.LifoQueue()
+fringe = queue.Queue()
 fringe.put(initial_state)
 iteration = 0
 
-
+dot_graph = None
 while not fringe.empty():
     curr_state = fringe.get(block=False)
     print('start state:')
@@ -362,3 +369,4 @@ while not fringe.empty():
 
     print('************'+str(iteration)+'*****************')
     # input("Press Enter to continue...")
+dot_graph.write('graph.dot')
