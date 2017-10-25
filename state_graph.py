@@ -5,7 +5,7 @@ import pydot
 
 class NZP:
     def __init__(self):
-        self.names = ['negative', 'zero', 'positive']
+        self.names = ['-', '0', '+']
         self.vals = [-1, 0, 1]
         self.stationary = [False, True, False]
 
@@ -19,7 +19,7 @@ class ZP:
 
 class ZPM:
     def __init__(self):
-        self.names = ['zero', 'plus', 'maximum']
+        self.names = ['zero', 'plus', 'max']
         self.vals = [0, 1, 2]
         self.stationary = [True, False, True]
 
@@ -62,7 +62,7 @@ class QSpace(object):
 
 
 class State:
-    def __init__(self,quantities):
+    def __init__(self, quantities):
         self.state = {
             'inflow': {'mag': quantities[0],
                        'der': quantities[1]},
@@ -73,7 +73,7 @@ class State:
         }
         self.next_states = []
         self.quantities = quantities
-        self.name ="noname"
+        self.name = "noname"
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -97,97 +97,110 @@ def stationaryToIntervalChange(state_obj):
             return True
     return False
 
+
 def genFlipedInflow(state_obj):
     states = []
     if state_obj.state['inflow']['der'].getVal() == 0:
         inc_state = copy.deepcopy(state_obj)
         inc_state.state['inflow']['der'].increase()
-        states.append({'state': inc_state, 'change': StateChange(desc = "Im+")})
+        states.append({'state': inc_state, 'change': StateChange(desc="Im+")})
         if state_obj.state['inflow']['mag'].getVal() != 0:
             dec_state = copy.deepcopy(state_obj)
             dec_state.state['inflow']['der'].decrease()
-            states.append({'state': dec_state, 'change': StateChange(desc = "Im-")})
+            states.append(
+                {'state': dec_state, 'change': StateChange(desc="Im-")})
         return states
     if stationaryToIntervalChange(state_obj):
         return states
+    # if (state_obj.state['inflow']['mag'].getVal() == 0
+    #     or state_obj.state['outflow']['der'].getVal() == 0):
+    #     return states
     if state_obj.state['inflow']['der'].getVal() == -1:
         inc_state = copy.deepcopy(state_obj)
         inc_state.state['inflow']['der'].increase()
-        states.append({'state': inc_state, 'change': StateChange(desc = "Im+")})
+        states.append({'state': inc_state, 'change': StateChange(desc="Im+")})
         return states
     if state_obj.state['inflow']['der'].getVal() == 1:
         dec_state = copy.deepcopy(state_obj)
         dec_state.state['inflow']['der'].decrease()
-        states.append({'state': dec_state, 'change': StateChange(desc = "Im-")})
+        states.append({'state': dec_state, 'change': StateChange(desc="Im-")})
         return states
     return states
+
+def newState(state_obj,change =[('inflow','der',0)],desc=""):
+    new_state = copy.deepcopy(state_obj)
+    for ch in change:
+        if ch[2] == -1:
+            new_state.state[ch[0]][ch[1]].decrease()
+        elif ch[2] == 1:
+            new_state.state[ch[0]][ch[1]].increase()
+
+    return {'state': new_state, 'change': StateChange(desc=desc)}
 
 def generateNextStates(state_obj):
     state = state_obj.state
     new_states = []
-    # getting to maximum
-    if state['volume']['der'].getVal() == 1 and state['volume']['mag'].getVal() == 1:
-        new = copy.deepcopy(state_obj)
-        new.state['volume']['der'].decrease()
-        new.state['outflow']['der'].decrease()
-        new.state['volume']['mag'].increase()
-        new.state['outflow']['mag'].increase()
-        desc = "Vm+, Om+"
-        new_states.append({'state': new, 'change': StateChange(desc = desc)})
+    # imidiate changes
+    if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
+         new_states.append(newState(state_obj,[('volume','mag',1),('outflow','mag',1)],"IM1"))
 
-    # apply derivation on inflow magnitude
-    if state['inflow']['der'].getVal() == 1:
-        new = copy.deepcopy(state_obj)
-        new.state['inflow']['mag'].increase()
-        new.state['volume']['der'].increase()
-        new.state['outflow']['der'].increase()
-        desc = "Id+ -> Im+, Vd+, Od+"
-        new_states.append({'state': new, 'change': StateChange(desc = desc)})
+    if state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 1:
+         new_states.append(newState(state_obj,[('inflow','mag',1),
+            ('outflow','der',1),('volume','der',1)],"IM2"))
 
-    # apply influenc of inflow magnitude
-    if state['inflow']['mag'].getVal() == 1 and state['volume']['mag'].getVal() < 1:
-        new = copy.deepcopy(state_obj)
-        new.state['volume']['der'].increase()
-        new.state['outflow']['der'].increase()
-        desc = "Vd+, Od+"
-        new_states.append({'state': new, 'change': StateChange(desc = desc)})
 
-    # # apply influenc of slowing inflow
-    # if state['inflow']['der'].getVal() == -1:
-    #     new = copy.deepcopy(state_obj)
-    #     new.state['volume']['der'].decrease()
-    #     new.state['outflow']['der'].decrease()
-    #     desc = "Vd-, Od-"
-    #     new_states.append({'state': new, 'change': StateChange(desc = desc)})
+    # Changes which take long time:
 
-    # apply influence of steady inflow
-    if (state['inflow']['der'].getVal() == 0
-        and state['volume']['der'].getVal() == 1
-        and state['inflow']['mag'].getVal() == 0):
+    # increasing inflow volume
+    if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == 1):
+        # apply positive Infuence
+        if state['outflow']['mag'].getVal() != 2:
+            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)]))
+        if state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == 1:
+            # go to maximal state
+            new_states.append(newState(state_obj,[('volume','mag',1),
+                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)]))
+        # # apply derivatives to increase volume magnitude
+        # if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
+        #     new_states.append(newState(state_obj,[('volume','mag',+1),('outflow','mag',+1)]))
 
-        new = copy.deepcopy(state_obj)
-        new.state['volume']['der'].decrease()
-        new.state['outflow']['der'].decrease()
-        desc = "Vd-, Od-"
-        new_states.append({'state': new, 'change': StateChange(desc = desc)})
-    # apply derivatives of increasing volume
-    if state['volume']['der'].getVal() == 1 and state['volume']['mag'].getVal() == 0:
-        new = copy.deepcopy(state_obj)
-        new.state['volume']['mag'].increase()
-        new.state['outflow']['mag'].increase()
-        desc = "Vd+ Od+ -> Vm+, Om+"
-        new_states.append({'state': new, 'change': StateChange(desc = desc)})
-    print('generated states',len(new_states))
+        # rate of changes between inflow and outflow- outflow is faster -> go back to steady
+        if (state['outflow']['mag'].getVal() == 1
+            and state['outflow']['der'].getVal() == state['inflow']['der'].getVal()):
+            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],desc="steady"))
 
-    # for s in new_states:
-    #     state = s['state'].state
-    #     if state['inflow']['der'].getVal() == 0:
+    # steady inflow volume
+    if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == 0):
+        change = -1*  state['outflow']['der'].getVal()
+        new_states.append(newState(state_obj,[('volume','der',change),('outflow','der',change)]))
+        if state['outflow']['der'].getVal() == 1:
+            new_states.append(newState(state_obj,[('volume','mag',1),
+                ('volume','der',-1),('outflow','mag',1),('outflow','der',-1)]))
 
-    #     elif  state['inflow']['der'].getVal() > 0:
-    #     else:
+    # decreasing inflow volume
+    if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == -1):
+        # apply negative influence
+        new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],desc="d1"))
+        # extreme no inflow volume left
+        if state['outflow']['der'].getVal() == -1 and state['outflow']['mag'].getVal() < 2:
+            new_states.append(newState(state_obj,[('inflow','der',+1),('inflow','mag',-1)],desc="d2"))
+        # colapsing from maximum to plus
+        if state['outflow']['mag'].getVal() == 2 and state['outflow']['der'].getVal() == -1:
+            new_states.append(newState(state_obj,[('volume','mag',-1),('outflow','mag',-1)],desc="d3"))
+        # speed of decrease can be different in inflow and outflow -> go to steady outflow
+        if state['outflow']['der'].getVal() == state['inflow']['der'].getVal():
+            new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],desc="d3"))
 
-    # if len(new_states) == 0:
+    # no inflow volume
+    if (state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 0):
+        if state['outflow']['mag'].getVal() > 0:
+            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)]))
+        if (state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == -1):
+            new_states.append(newState(state_obj,[('volume','der',1),('outflow','der',1),
+                ('volume','mag',-1),('outflow','mag',-1)]))
+
     new_states = new_states + genFlipedInflow(state_obj)
+    print('new states generated: ',len(new_states))
     return new_states
 
 
@@ -214,14 +227,7 @@ def addNewState(edges, states, source, target, change):
 
 def validateState(state_obj):
     state = state_obj.state
-    # correspondence between magnitude of outflow and volume
-    # if (state['volume']['der'] != state['outflow']['der']):
-    #     return False
-    # proportiality is not possible to apply derivatives have different signs
-    if (state['volume']['der'].getVal() + state['outflow']['der'].getVal() == 0
-        and state['volume']['der'].getVal() != 0
-            and state['outflow']['der'].getVal() != 0):
-        return False
+    # return True
     # volume/outflow derivation cannot be positive when the container is full
     if (state['volume']['mag'].getVal() == 2 and state['volume']['der'].getVal() == 1):
         return False
@@ -258,7 +264,7 @@ def getStateText(state):
 
 # generates a visual (directed) graph of all states
 def generateGraph(edgeList):
-    graph = pydot.Dot(graph_type='digraph')
+    graph = pydot.Dot(graph_type='digraph',center=True)
     for edgeObj in edgeList:
         transitionText = edgeObj['explanation']
         sourceState = edgeObj['source']
@@ -283,7 +289,7 @@ def generateGraph(edgeList):
             labelfontcolor=edgeFillColor, fontsize=edgeFontSize, color=edgeTextColor)
         graph.add_edge(edge)
 
-    #graph.write_png('TEST_graph.png')
+    # graph.write_png('TEST_graph.png')
     return graph
 
 # --------------------------------------- MAIN --------------------------------------
@@ -297,7 +303,7 @@ edgeTextColor = 'black'
 edgeFontSize = '12.0'
 
 inflow_mag = QSpace('inflow_mag', ZP(), 0)
-inflow_der = QSpace('inflow_der', NZP(), 1)
+inflow_der = QSpace('inflow_der', NZP(), 2)
 volume_mag = QSpace('volume_mag', ZPM(), 0)
 volume_der = QSpace('volume_der', NZP(), 1)
 outflow_mag = QSpace('outflow_mag', ZPM(), 0)
@@ -310,7 +316,7 @@ initial_state = State(
 
 states = [initial_state]
 edges = []
-fringe = queue.Queue()
+fringe = queue.LifoQueue()
 fringe.put(initial_state)
 iteration = 0
 
@@ -321,8 +327,8 @@ while not fringe.empty():
     printState(curr_state)
     new_states = generateNextStates(curr_state)
     for state_dict in new_states:
-        if not validateState(state_dict['state']):
-            continue
+        # if not validateState(state_dict['state']):
+        #     continue
         same_state = existingState(states, state_dict['state'])
         if same_state is None:
             print("NONE")
@@ -341,4 +347,4 @@ while not fringe.empty():
     iteration+=1
 
     print('************'+str(iteration)+'*****************')
-    input("Press Enter to continue...")
+    # input("Press Enter to continue...")
