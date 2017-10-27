@@ -102,9 +102,12 @@ def stationaryToIntervalChange(state_obj):
 def genFlipedInflow(state_obj):
     states = []
     if state_obj.state['inflow']['der'].getVal() == 0:
-        states.append(newState(state_obj,[('inflow','der',+1)],desc="Id+", transition="increase"))
+        states.append(newState(state_obj,[('inflow','der',+1)], 
+            desc="Id+", transition="increase"))
+        
         if state_obj.state['inflow']['mag'].getVal() != 0:
-            states.append(newState(state_obj,[('inflow','der',-1)],desc="Id-", transition="decrease"))
+            states.append(newState(state_obj,[('inflow','der',-1)], 
+                desc="Id-", transition="decrease"))                     
 
         return states
 
@@ -119,10 +122,12 @@ def genFlipedInflow(state_obj):
         and state_obj.state['outflow']['mag'].getVal() == 2):
         return states
     if state_obj.state['inflow']['der'].getVal() == -1:
-        states.append(newState(state_obj,[('inflow','der',+1)],desc="Id+", transition="increase"))
+        states.append(newState(state_obj,[('inflow','der',+1)],
+            desc="Id+", transition="increase"))
         return states
     if state_obj.state['inflow']['der'].getVal() == 1:
-        states.append(newState(state_obj,[('inflow','der',-1)],desc="Id-", transition="decrease"))
+        states.append(newState(state_obj,[('inflow','der',-1)],
+            desc="Id-", transition="decrease"))        
         return states
     return states
 
@@ -142,18 +147,18 @@ def generateNextStates(state_obj):
     # imidiate changes
     if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
          new_states.append(newState(state_obj,[('volume','mag',1),('outflow','mag',1)],
-         desc="Im+->Vd+,Od+", transition="time"))
-         new_states[-1]['state'].desc="Positive change in volume/outflow causes increase in magnitude of these  quantities."
+             desc="Im+->Vd+,Od+", transition="time"))
+         new_states[-1]['state'].desc="Positive change in volume/outflow causes increase in magnitude of these quantities."
 
     if state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 1:
          changes = [('inflow','mag',1)]
          desc = "Id+->Im+. "
-         state_desc = "Positive change in inflow influences magnitude of inflow."
+         state_desc = "Positive change in inflow increases magnitude of inflow."
          if state['outflow']['der'].isStationary():
             changes.append(('outflow','der',1))
             changes.append(('volume','der',1))
-            state_desc+=" Positive change in inflow magnitude causes to positivelly increase change of volume and outflow."
-         new_states.append(newState(state_obj,changes,desc=desc+"Im+->Vd+,Od+", transition="time"))
+            state_desc+=" Positive change in inflow magnitude causes to positively increase change of volume and outflow."
+         new_states.append(newState(state_obj,changes, desc=desc+"Im+->Vd+,Od+", transition="time"))
          new_states[-1]['state'].desc=state_desc
 
     if len(new_states) == 0:
@@ -165,7 +170,7 @@ def generateNextStates(state_obj):
         # apply positive Infuence
         if state['outflow']['mag'].getVal() != 2:
             new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],
-            desc="E+->Vd+,Od+", transition="time"))
+                desc="E+->Vd+,Od+", transition="time"))
             new_states[-1]['state'].desc="Increasing inflow. Increasing derivation of Volume and Outflow."
         if state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == 1:
             # go to maximal state
@@ -178,7 +183,7 @@ def generateNextStates(state_obj):
         if (state['outflow']['mag'].getVal() == 1
             and state['outflow']['der'].getVal() == state['inflow']['der'].getVal()):
             new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
-            desc="Im<Om->Vd-,Od-", transition="time"))
+                desc="Im<Om->Vd-,Od-", transition="time"))
             new_states[-1]['state'].desc="Increasing inflow. Inflow is increasing slower than Outflow. The volume is in positive steady state."
 
     # steady inflow volume
@@ -199,33 +204,36 @@ def generateNextStates(state_obj):
     if (state['inflow']['mag'].getVal() == 1 and state['inflow']['der'].getVal() == -1):
         # apply negative influence
         new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
-        desc="E-->Vd-,Od-", transition="time"))
+            desc="E-->Vd-,Od-", transition="time"))
         # extreme no inflow volume left
         if state['outflow']['der'].getVal() == -1 and state['outflow']['mag'].getVal() < 2:
             new_states.append(newState(state_obj,[('inflow','der',+1),('inflow','mag',-1)],
-            desc="E-->Id0,Im0", transition="time"))
+                desc="E-->Id0,Im0", transition="time"))
             new_states[-1]['state'].desc="Inflow is empty."
         # colapsing from maximum to plus
         if state['outflow']['mag'].getVal() == 2 and state['outflow']['der'].getVal() == -1:
             new_states.append(newState(state_obj,[('volume','mag',-1),('outflow','mag',-1)],
-            desc="E-->Vm-,Om-", transition="time"))
+                desc="E-->Vm-,Om-", transition="time"))
             new_states[-1]['state'].desc="Inflow is is slowing down what causes increase in outflow rate."
         # speed of decrease can be different in inflow and outflow -> go to steady outflow
         if (state['outflow']['der'].getVal() == state['inflow']['der'].getVal()
             and not state['outflow']['mag'].isStationary()):
             new_states.append(newState(state_obj,[('volume','der',+1),('outflow','der',+1)],
-            desc="E-->Vd-,Od-", transition="time"))
+                desc="E-->Vd-,Od-", transition="time"))
             new_states[-1]['state'].desc="Positive steady state"
 
     # no inflow volume
     if (state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 0):
         if state['outflow']['mag'].getVal() > 0:
-            new_states.append(newState(state_obj,[('volume','der',-1),('outflow','der',-1)],
-            desc="E0->Vd-,Od-", transition="time"))
+            new_states.append(newState(state_obj,
+                [('volume','der',-1),('outflow','der',-1)],
+                desc="E0->Vd-,Od-", transition="time"))
 
         if (state['outflow']['mag'].getVal() == 1 and state['outflow']['der'].getVal() == -1):
             new_states.append(newState(state_obj,[('volume','der',1),('outflow','der',1),
-                ('volume','mag',-1),('outflow','mag',-1)], desc="E0->Vd+,Od+", transition="time"))
+                ('volume','mag',-1),('outflow','mag',-1)], 
+                desc="E0->Vd+,Od+", transition="time"))
+                
     # print('new states generated: ',len(new_states))
     return new_states
 
@@ -234,7 +242,7 @@ def generateNextStates(state_obj):
 
 def printState(state_obj):
     state = state_obj.state
-    print(state_obj.name)
+    print("State",state_obj.name)
     print(state['inflow']['mag'].getName(), state['inflow']['der'].getName())
     print(state['volume']['mag'].getName(), state['volume']['der'].getName())
     print(state['outflow']['mag'].getName(), state['outflow']['der'].getName())
@@ -333,6 +341,12 @@ def printIntraState(state_obj):
     state = state_obj.state
     printState(state_obj)
     print(state_obj.desc)
+    if state_obj.desc == None or state_obj.desc == '':
+        if state['inflow']['der'].getVal() == 0:
+            print("Initial state. Inflow is empty.")
+        if state['inflow']['der'].getVal() == 1:
+            print("Increasing inflow.")
+
     # if state['inflow']['der'].getVal() == 1:
     #     print('Inflow is increasing')
     # if state['inflow']['der'].getVal() == -1:
@@ -366,6 +380,7 @@ fringe = queue.Queue()
 fringe.put(initial_state)
 iteration = 0
 
+print("INTER-STATE TRACE")
 dot_graph = None
 while not fringe.empty():
     curr_state = fringe.get(block=False)
@@ -392,5 +407,8 @@ while not fringe.empty():
     # input("Press Enter to continue...")
 dot_graph.write('graph.dot')
 dot_graph.write_png('TEST_graph.png')
+print("\n")
+print("INTRA-STATE TRACE")
 for st in states:
     printIntraState(st)
+print("\n")
