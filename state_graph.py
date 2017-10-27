@@ -131,6 +131,7 @@ def genFlipedInflow(state_obj):
         return states
     return states
 
+
 def newState(state_obj,change =[('inflow','der',0)],desc="", transition=""):
     new_state = copy.deepcopy(state_obj)
     for ch in change:
@@ -140,6 +141,7 @@ def newState(state_obj,change =[('inflow','der',0)],desc="", transition=""):
             new_state.state[ch[0]][ch[1]].increase()
 
     return {'state': new_state, 'desc':desc, 'transition': transition}
+
 
 def generateNextStates(state_obj):
     state = state_obj.state
@@ -238,8 +240,6 @@ def generateNextStates(state_obj):
     return new_states
 
 
-
-
 def printState(state_obj):
     state = state_obj.state
     print("State",state_obj.name)
@@ -248,8 +248,10 @@ def printState(state_obj):
     print(state['outflow']['mag'].getName(), state['outflow']['der'].getName())
     print('----------------------')
 
+
 def createEdge(source, target, desc, transition):
     return {"explanation": desc,"source": source, "target": target, "transition": transition}
+
 
 def addNewState(edges, states, source, target, desc, transition):
     source.next_states.append(target)
@@ -275,6 +277,7 @@ def getStateText(state):
     out_mag = state.state['outflow']['mag'].getName()
     out_der = state.state['outflow']['der'].getName()
     return str(state.name)+'\n'+in_mag+"  "+in_der+"\n"+vol_mag+"  "+vol_der+"\n"+out_mag+"  "+out_der
+
 
 # generates a visual (directed) graph of all states
 def generateGraph(edgeList):
@@ -316,6 +319,7 @@ def generateGraph(edgeList):
 
     return graph
 
+
 def decodeDesc(desc):
     out = desc.replace('d',"derivative] ")
     out = out.replace('m',"magnitude] ")
@@ -334,9 +338,9 @@ def decodeDesc(desc):
     # out = out.replace('~',"is steady ")
     out = out.replace('<',"is less than ")
     out = out.replace('.',"\n ")
-
-
     return out
+    
+    
 def printIntraState(state_obj):
     state = state_obj.state
     printState(state_obj)
@@ -358,6 +362,7 @@ def printIntraState(state_obj):
     # if state['outflow']['der'].getVal() == 1:
     #     print('')
     print('----------------------')
+
 
 def printInterstate(name_a,name_b,desc):
     print("{:<3}->{:<3}:{:<30}{:<100}".format(name_a,name_b,desc,decodeDesc(desc)))
