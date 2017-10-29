@@ -150,7 +150,7 @@ def generateNextStates(state_obj):
     if state['outflow']['mag'].getVal() == 0 and state['outflow']['der'].getVal() == 1:
          new_states.append(newState(state_obj,[('volume','mag',1),('outflow','mag',1)],
              desc="Im+->Vd+,Od+", transition="time"))
-         new_states[-1]['state'].desc="Positive change in volume/outflow causes increase in magnitude of these quantities."
+         #new_states[-1]['state'].desc="Positive change in volume/outflow causes increase in magnitude of these quantities."
 
     if state['inflow']['mag'].getVal() == 0 and state['inflow']['der'].getVal() == 1:
          changes = [('inflow','mag',1)]
@@ -345,12 +345,25 @@ def printIntraState(state_obj):
     state = state_obj.state
     printState(state_obj)
     print(state_obj.desc)
+    for var in ['inflow', 'outflow', 'volume']:
+        if state[var]['der'].getVal() == 1 and state[var]['mag'].getVal() == 1:
+            print(var+ ' quantity increasing')
+        if state[var]['der'].getVal() == 0 and state[var]['mag'].getVal() == 1:
+            print(var+ ' quantity is steady')
+        if state[var]['der'].getVal() == -1 and state[var]['mag'].getVal() == 1:
+            print(var+ ' quantity decreasing')
+    '''        
     if state_obj.desc == None or state_obj.desc == '':
         if state['inflow']['der'].getVal() == 0:
             print("Initial state. Inflow is empty.")
         if state['inflow']['der'].getVal() == 1:
             print("Increasing inflow.")
-
+    if state['volume']['der'].getVal() == -1:
+        print('Decreasing volume / outflow.')
+    if state['volume']['der'].getVal() == 1:
+        print('Increasing volume / outflow.')
+    if state['volume']['der'].getVal() == 0:
+        print('Steady volume / outflow.')
     # if state['inflow']['der'].getVal() == 1:
     #     print('Inflow is increasing')
     # if state['inflow']['der'].getVal() == -1:
@@ -361,6 +374,7 @@ def printIntraState(state_obj):
     #     print('Container is full.')
     # if state['outflow']['der'].getVal() == 1:
     #     print('')
+    '''
     print('----------------------')
 
 
